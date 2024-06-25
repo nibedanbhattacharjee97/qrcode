@@ -4,6 +4,7 @@ import qrcode
 from PIL import Image
 from io import BytesIO
 import os
+import zipfile
 
 # Function to generate QR code
 def generate_qr_code(data):
@@ -25,6 +26,15 @@ def save_qr_to_bytesio(img):
     buffer.seek(0)
     return buffer
 
+# Function to create a zip file of all QR codes
+def create_zip_file(file_list):
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+        for file_name, file_data in file_list:
+            zip_file.writestr(file_name, file_data.getvalue())
+    zip_buffer.seek(0)
+    return zip_buffer
+
 # Streamlit UI
 st.title("Bulk QR Code Generator")
 
@@ -44,19 +54,25 @@ if uploaded_file:
         if missing_columns:
             st.error(f"Missing columns: {', '.join(missing_columns)}")
         else:
-            # Create 'output' directory if it doesn't exist
-            output_dir = "output"
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
+            file_list = []
             
             for index, row in df.iterrows():
                 name = row['Name']
                 data = f"Name: {row['Name']}\nDEG: {row['DEG']}\nCompany: {row['Company Name']}\nCTC: {row['CTC']}\nDOJ: {row['DOJ']}"
                 qr_img = generate_qr_code(data)
                 buffer = save_qr_to_bytesio(qr_img)
+                
+                file_list.append((f"{name}.png", buffer))
 
-                # Save the QR code image in the 'output' directory with the name from the 'Name' column
-                with open(os.path.join(output_dir, f"{name}.png"), "wb") as f:
-                    f.write(buffer.getvalue())
+            # Create zip file
+            zip_buffer = create_zip_file(file_list)
+            
+            # Provide download link for the zip file
+            st.download_button(
+                label="Download QR Codes as ZIP",
+                data=zip_buffer,
+                file_name="qr_codes.zip",
+                mime="application/zip"
+            )
 
-            st.success("QR codes have been generated and saved successfully!")
+            st.success("QR codes have been generated and are ready for download!")
